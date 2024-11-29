@@ -631,13 +631,36 @@ async def run_server(args, **uvicorn_kwargs) -> None:
     sock.close()
 
 
+# This is a workaround
+def hook(parser: FlexibleArgumentParser):
+    """Return a list"""
+    import sys
+    args = sys.argv[1:]
+    processed_args = []
+    if '--conf' in args:
+        assert args.count(
+            '--conf') <= 1, "More than one config file specified!"
+        index = args.index('--conf')
+        if index == len(args) -1:
+            raise ValueError("No config file specified! \
+                             Please check your command-line arguments.")
+        file_path = args[index + 1] # TODO
+        del args[index] # remove --conf
+        del args[index] # remove file_path
+        processed_args = parser._load_config_file(file_path)
+        processed_args.extend(args)
+
+    return processed_args
+
+
 if __name__ == "__main__":
     # NOTE(simon):
     # This section should be in sync with vllm/scripts.py for CLI entrypoints.
     parser = FlexibleArgumentParser(
         description="vLLM OpenAI-Compatible RESTful API server.")
     parser = make_arg_parser(parser)
-    args = parser.parse_args()
+    post_processed_args = hook(parser)
+    args = parser.parse_args(post_processed_args)
     validate_parsed_serve_args(args)
 
     uvloop.run(run_server(args))
